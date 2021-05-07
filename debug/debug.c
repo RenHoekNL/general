@@ -1,6 +1,8 @@
 // reset ; gcc -DDEBUG_EXAMPLE -Wall -g -o debug_example debug.c
 // reset ; valgrind -q --leak-check=full --show-reachable=yes --track-origins=yes --track-fds=yes ./debug_example
 
+// If including this file from another Makefile, use the "VPATH = ../debug/" line
+
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -13,6 +15,7 @@
 
 #include "debug.h"
 
+static uint32_t sequence = 1;
 
 
 static void timespec_diff(struct timespec *end, struct timespec *start, struct timespec *result)
@@ -58,7 +61,9 @@ if(debug_options.logfile_fd != -1)
 }
 
 
-void DEBUG_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...)
+
+
+static void DEBUG_INTERNAL2(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, va_list Va)
 {
 #define DEBUG_MSG_SIZE   4069
 
@@ -69,6 +74,13 @@ struct timespec   now;
 
 if(!O->to_stdout && !O->to_stderr && !O->to_file)
   return;
+
+if(O->print_sequence)
+  {
+  r = r + snprintf(&msg[r], DEBUG_MSG_SIZE - r, "SEQ_%u:", sequence);
+  sequence++;
+  }
+
 
 if(O->print_timestamp)
   {
@@ -120,13 +132,10 @@ if(O->print_function)
 if(O->print_line)
   r = r + snprintf(&msg[r], DEBUG_MSG_SIZE - r, "%u:", Line);
 
-va_list ap;
-va_start(ap, Msg);
-r = r + vsnprintf(&msg[r], DEBUG_MSG_SIZE - r, Msg, ap);
-va_end(ap);
+r = r + vsnprintf(&msg[r], DEBUG_MSG_SIZE - r, Msg, Va);
 
 if(O->print_strerror && errno != 0)
-  r = r + snprintf(&msg[r], DEBUG_MSG_SIZE - r, ":%s", strerror(errno));
+  r = r + snprintf(&msg[r], DEBUG_MSG_SIZE - r, ":%s", strerror(Errno));
 
 r = r + snprintf(&msg[r], DEBUG_MSG_SIZE - r, "\n");
 
@@ -159,19 +168,31 @@ if(O->to_file)
   write(O->logfile_fd, msg, r);
   }
 
-} // DEBUG_INTERNAL()
+} // DEBUG_INTERNAL2()
 
 
 
+void DEBUG_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...)
+{
+va_list va;
+va_start(va, Msg);
+DEBUG_INTERNAL2(O, File, Function, Line, Errno, Msg, va);
+va_end(va);
+}
+
+
+
+// https://stackoverflow.com/questions/36881533/passing-va-list-to-other-functions/36881737
+// DEBUG_INTERNAL should become a funcation that accepts a va_list as an argument, meaning the debug() function needs a function between itself and DEBUG_INTERNAL
 void DIE_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...)
 {
 if(!O->to_stdout)
   O->to_stderr = 1;                      // If we're dying, make sure we output!
 
-va_list ap;
-va_start(ap, Msg);
-DEBUG_INTERNAL(O, File, Function, Line, Errno, Msg, ap);
-va_end(ap);
+va_list va;
+va_start(va, Msg);
+DEBUG_INTERNAL2(O, File, Function, Line, Errno, Msg, va);
+va_end(va);
 exit(1);
 }
 
