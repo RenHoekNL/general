@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <time.h>
 
 #define DEBUG_LEVEL_DEBUG           1
 #define DEBUG_LEVEL_INFO            2
@@ -24,6 +25,7 @@ struct debug_options
   char             *to_file;                      // at_exit() close file
   int               logfile_fd;
 
+  uint32_t          print_sequence;
   uint32_t          print_ppid;
   uint32_t          print_pid;
   uint32_t          print_file;
@@ -44,7 +46,7 @@ struct debug_options
 
 //void DEBUG_CONTROL_INTERNAL(struct debug_opt *O);
 void DEBUG_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...);
-void DIE_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...);
+void DIE_INTERNAL(struct debug_options *O, const char *File, const char *Function, uint32_t Line, uint32_t Errno, char *Msg, ...) __attribute__((noreturn));
 
 //#define debug_control(...) do{DEBUG_CONTROL_INTERNAL(&debug_options, (struct debug_opt){ ## __VA_ARGS__ });}while(0)
 #define debug(...) do{DEBUG_INTERNAL(&debug_options, __FILE__, __PRETTY_FUNCTION__, __LINE__, errno, __VA_ARGS__ );}while(0)
